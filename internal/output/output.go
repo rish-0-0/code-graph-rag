@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
 )
 
 // WriteAll writes graph g to outDir in the given format. format is one of

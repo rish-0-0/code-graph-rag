@@ -13,8 +13,8 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/discover"
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
+	"github.com/rish-0-0/code-graph-rag/internal/discover"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
 	"golang.org/x/tools/go/packages"
 )
 

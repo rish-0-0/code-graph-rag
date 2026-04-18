@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
 )
 
 func sampleGraph() graph.Graph {

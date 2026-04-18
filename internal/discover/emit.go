@@ -3,7 +3,7 @@ package discover
 import (
 	"fmt"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
 )
 
 // ModuleID returns the stable graph ID for a module.

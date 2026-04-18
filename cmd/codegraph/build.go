@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/discover"
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
-	golangidx "github.com/rishabhanand42/code-graph-rag/internal/indexer/golang"
-	"github.com/rishabhanand42/code-graph-rag/internal/output"
+	"github.com/rish-0-0/code-graph-rag/internal/discover"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
+	golangidx "github.com/rish-0-0/code-graph-rag/internal/indexer/golang"
+	"github.com/rish-0-0/code-graph-rag/internal/output"
 )
 
 func runBuild(args []string) int {

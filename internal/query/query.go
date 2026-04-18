@@ -6,7 +6,7 @@ package query
 import (
 	"strings"
 
-	"github.com/rishabhanand42/code-graph-rag/internal/graph"
+	"github.com/rish-0-0/code-graph-rag/internal/graph"
 )
 
 // Caller is one node reached during a blast-radius walk.

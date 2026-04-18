@@ -10,13 +10,13 @@ Designed as a Claude Code skill: `--help` on every subcommand is the contract.
 ## Install
 
 ```
-go install github.com/rishabhanand42/code-graph-rag/cmd/codegraph@latest
+go install github.com/rish-0-0/code-graph-rag/cmd/codegraph@latest
 ```
 
 From source:
 
 ```
-git clone https://github.com/rishabhanand42/code-graph-rag
+git clone https://github.com/rish-0-0/code-graph-rag
 cd code-graph-rag
 go build -o codegraph ./cmd/codegraph
 ```
