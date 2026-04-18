@@ -29,4 +29,9 @@ go.work.sum
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/
+
+/graph-out/
+/.codegraph/
+/codegraph
+/codegraph.exe
