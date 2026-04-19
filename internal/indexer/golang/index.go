@@ -165,6 +165,23 @@ func emitTypeSpec(g graph.Graph, lp *loadedPkg, fileID string, s *ast.TypeSpec) 
 			}
 		}
 	}
+
+	// Interface methods: emit Method nodes so CALLS edges to interface-dispatched
+	// methods resolve to a real node instead of dangling.
+	if it, ok := s.Type.(*ast.InterfaceType); ok && it.Methods != nil {
+		for _, m := range it.Methods.List {
+			if _, isFunc := m.Type.(*ast.FuncType); !isFunc {
+				continue // embedded interface, skip
+			}
+			for _, mn := range m.Names {
+				mid := id + "." + mn.Name
+				g.AddNode(graph.Node{ID: mid, Kind: graph.NodeMethod, Name: mn.Name,
+					Pos: position(lp.pkg.Fset, mn.Pos())})
+				g.AddEdge(graph.Edge{Kind: graph.EdgeHasMethod, From: id, To: mid})
+				g.AddEdge(graph.Edge{Kind: graph.EdgeContains, From: lp.pkgID, To: mid})
+			}
+		}
+	}
 }
 
 func emitFuncDecl(g graph.Graph, lp *loadedPkg, all map[string]*loadedPkg, fileID string, d *ast.FuncDecl) {

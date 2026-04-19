@@ -7,7 +7,11 @@
       "Bash(go get *)",
       "Bash(go test *)",
       "Bash(go build *)",
-      "Bash(go run *)"
+      "Bash(go run *)",
+      "Bash(./codegraph.exe blast *)",
+      "Bash(./codegraph.exe build *)",
+      "Bash(./codegraph.exe broken *)",
+      "Bash(./codegraph.exe query *)"
     ]
   }
 }

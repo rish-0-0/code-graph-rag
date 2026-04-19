@@ -24,6 +24,14 @@ type Options struct {
 	FollowReplace bool
 	// UseGit enriches each module with git commit/tag when available.
 	UseGit bool
+	// Ignore is a list of directory names or root-relative paths to skip
+	// during the walk (e.g. "scripts", "apps/legacy"). Always applied in
+	// addition to the built-in skip list (.git, vendor, node_modules).
+	Ignore []string
+	// Only, if non-empty, restricts discovered modules to those whose dir
+	// is at or under one of these root-relative paths. Walk still descends
+	// fully — filtering happens after parse.
+	Only []string
 }
 
 // Module is a discovered Go module on disk.
@@ -86,12 +94,19 @@ func Discover(root string, opts Options) (*Result, error) {
 			if name == ".git" || name == "vendor" || name == "node_modules" {
 				return filepath.SkipDir
 			}
+			if matchPath(absRoot, path, opts.Ignore) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if d.Name() != "go.mod" {
 			return nil
 		}
-		m, err := parseModule(filepath.Dir(path))
+		modDir := filepath.Dir(path)
+		if len(opts.Only) > 0 && !matchPath(absRoot, modDir, opts.Only) {
+			return nil
+		}
+		m, err := parseModule(modDir)
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -148,6 +163,34 @@ func parseModule(dir string) (*Module, error) {
 		m.Replaces = append(m.Replaces, rep)
 	}
 	return m, nil
+}
+
+// matchPath returns true if dir matches any pattern. Each pattern is
+// either a basename (matched against the leaf segment) or a root-relative
+// path (matched against the relative path or as a prefix of it).
+func matchPath(root, dir string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+	rel, err := filepath.Rel(root, dir)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	base := filepath.Base(dir)
+	for _, p := range patterns {
+		p = filepath.ToSlash(strings.TrimSpace(p))
+		if p == "" {
+			continue
+		}
+		if p == base || p == rel {
+			return true
+		}
+		if strings.HasPrefix(rel, p+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func isLocalPath(p string) bool {

@@ -15,7 +15,7 @@ func runBlast(args []string) int {
 	fs := newFlagSet("blast", "print reverse-dependency (blast radius) of a symbol")
 	root := fs.String("root", ".", "root directory (only used when rebuilding)")
 	symbol := fs.String("symbol", "", "fully-qualified symbol or suffix match (e.g. pkg.Func)")
-	depth := fs.Int("depth", 0, "max BFS depth (0 = unlimited); limits output size on large graphs")
+	depth := fs.Int("depth", 10, "max BFS depth (0 = unlimited)")
 	asJSON := fs.Bool("json", false, "emit JSON instead of text")
 	persistPath := fs.String("persist", output.CanonicalPath, "canonical graph file to read")
 	rebuild := fs.Bool("rebuild", false, "re-run build even if a persisted graph exists")
@@ -59,7 +59,7 @@ func loadOrBuild(persistPath, root string, forceRebuild bool) (graph.Graph, erro
 		}
 		fmt.Fprintf(os.Stderr, "no persisted graph at %s — running fresh build\n", persistPath)
 	}
-	g, err := buildGraph(root, "./...", "", true, true)
+	g, err := buildGraph(root, "./...", "", true, true, nil, nil)
 	if err != nil {
 		return nil, err
 	}

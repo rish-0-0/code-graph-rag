@@ -24,8 +24,8 @@ func TestDiscoverMultiModuleWithReplace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Modules) != 2 {
-		t.Fatalf("want 2 modules, got %d", len(res.Modules))
+	if len(res.Modules) != 3 {
+		t.Fatalf("want 3 modules (moda, modb, modc), got %d", len(res.Modules))
 	}
 	var modb *Module
 	for _, m := range res.Modules {
@@ -42,13 +42,13 @@ func TestDiscoverMultiModuleWithReplace(t *testing.T) {
 
 	g := graph.New()
 	Emit(g, res)
-	if len(g.NodesByKind(graph.NodeModule)) != 2 {
-		t.Fatalf("want 2 Module nodes, got %d", len(g.NodesByKind(graph.NodeModule)))
+	if got := len(g.NodesByKind(graph.NodeModule)); got != 3 {
+		t.Fatalf("want 3 Module nodes, got %d", got)
 	}
-	if len(g.EdgesByKind(graph.EdgeReplaces)) != 1 {
-		t.Fatalf("want 1 REPLACES edge")
+	if got := len(g.EdgesByKind(graph.EdgeReplaces)); got != 2 {
+		t.Fatalf("want 2 REPLACES edges, got %d", got)
 	}
-	if len(g.EdgesByKind(graph.EdgeResolvesTo)) != 1 {
-		t.Fatalf("want 1 RESOLVES_TO edge")
+	if got := len(g.EdgesByKind(graph.EdgeResolvesTo)); got != 1 {
+		t.Fatalf("want 1 RESOLVES_TO edge (dedup), got %d", got)
 	}
 }

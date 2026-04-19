@@ -63,14 +63,14 @@ func TestIndex01Hello(t *testing.T) {
 func TestIndex02MultiModuleCrossModuleCall(t *testing.T) {
 	g := buildGraph(t, "02-multi-module")
 
-	if len(g.NodesByKind(graph.NodeModule)) != 2 {
-		t.Fatalf("want 2 Module nodes, got %d", len(g.NodesByKind(graph.NodeModule)))
+	if got := len(g.NodesByKind(graph.NodeModule)); got != 3 {
+		t.Fatalf("want 3 Module nodes (moda, modb, modc), got %d", got)
 	}
-	if len(g.EdgesByKind(graph.EdgeReplaces)) != 1 {
-		t.Fatal("want REPLACES edge")
+	if got := len(g.EdgesByKind(graph.EdgeReplaces)); got != 2 {
+		t.Fatalf("want 2 REPLACES edges (modb→moda, modc→moda), got %d", got)
 	}
-	if len(g.EdgesByKind(graph.EdgeResolvesTo)) != 1 {
-		t.Fatal("want RESOLVES_TO edge")
+	if got := len(g.EdgesByKind(graph.EdgeResolvesTo)); got != 1 {
+		t.Fatalf("want 1 RESOLVES_TO edge (moda@* dedupes across consumers), got %d", got)
 	}
 
 	// The CALLS edge from modb.CallA must terminate on moda.ExportedFn's real
@@ -100,5 +100,33 @@ func TestIndex02MultiModuleCrossModuleCall(t *testing.T) {
 	}
 	if !foundCross {
 		t.Fatal("CALLS edge from modb.CallA → moda.ExportedFn not found or not resolved to real node")
+	}
+
+	// modc.TripleAndAddOne must also land on moda.ExportedFn's real node.
+	var tripleFn string
+	for _, n := range g.NodesByKind(graph.NodeFunction) {
+		if strings.HasSuffix(n.ID, ".TripleAndAddOne") {
+			tripleFn = n.ID
+		}
+	}
+	if tripleFn == "" {
+		t.Fatal("modc.TripleAndAddOne not indexed")
+	}
+	var foundCrossC bool
+	for _, e := range g.EdgesFrom(tripleFn) {
+		if e.Kind != graph.EdgeCalls {
+			continue
+		}
+		target, ok := g.Node(e.To)
+		if !ok {
+			continue
+		}
+		if strings.Contains(e.To, "example.com/moda") && strings.HasSuffix(e.To, ".ExportedFn") && target.Kind == graph.NodeFunction {
+			foundCrossC = true
+			break
+		}
+	}
+	if !foundCrossC {
+		t.Fatal("CALLS edge from modc.TripleAndAddOne → moda.ExportedFn not resolved to real node")
 	}
 }

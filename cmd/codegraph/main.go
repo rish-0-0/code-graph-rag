@@ -12,6 +12,7 @@ Commands:
   build    Parse a Go module tree and persist a graph (.codegraph/graph.jsonl)
   blast    Print reverse-dependency (blast radius) of a symbol
   broken   Report dangling references, unsatisfied interfaces, orphaned exports
+  query    List packages, interfaces, up/downstream callers, or neighbors
   schema   Print the node/edge vocabulary and sample Cypher queries
 
 Typical flow:
@@ -36,6 +37,8 @@ func main() {
 		os.Exit(runBlast(args))
 	case "broken":
 		os.Exit(runBroken(args))
+	case "query":
+		os.Exit(runQuery(args))
 	case "schema":
 		os.Exit(runSchema(args))
 	case "-h", "--help", "help":

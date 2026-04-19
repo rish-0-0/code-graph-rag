@@ -28,13 +28,17 @@ type BlastResult struct {
 // by suffix against node IDs so callers can pass either a fully-qualified
 // ID or a short "pkgPath.Func" form. depth == 0 means unlimited.
 func Blast(g graph.Graph, symbol string, depth int) BlastResult {
-	start := findSymbol(g, symbol)
+	start := FindSymbol(g, symbol)
 	out := BlastResult{Symbol: symbol, Depth: depth}
 	if start == "" {
 		return out
 	}
-	visited := map[string]int{start: 0}
-	frontier := []string{start}
+	seeds := append([]string{start}, interfaceMethodSeeds(g, start)...)
+	visited := map[string]int{}
+	for _, s := range seeds {
+		visited[s] = 0
+	}
+	frontier := seeds
 	for d := 1; depth == 0 || d <= depth; d++ {
 		var next []string
 		for _, id := range frontier {
@@ -54,7 +58,9 @@ func Blast(g graph.Graph, symbol string, depth int) BlastResult {
 		}
 		frontier = next
 	}
-	delete(visited, start)
+	for _, s := range seeds {
+		delete(visited, s)
+	}
 	for id, d := range visited {
 		if n, ok := g.Node(id); ok {
 			out.Callers = append(out.Callers, Caller{ID: id, Kind: n.Kind, Name: n.Name, Depth: d})
@@ -63,7 +69,35 @@ func Blast(g graph.Graph, symbol string, depth int) BlastResult {
 	return out
 }
 
-func findSymbol(g graph.Graph, symbol string) string {
+// interfaceMethodSeeds returns interface-method node IDs that correspond to
+// the given concrete method. For a start node `pkg.Greeter.Say` where Greeter
+// implements Talker, it returns `pkg.Talker.Say`. Changing a concrete method
+// affects callers dispatching through any interface it satisfies, so those
+// interface-method nodes belong in the blast frontier.
+func interfaceMethodSeeds(g graph.Graph, start string) []string {
+	n, ok := g.Node(start)
+	if !ok || n.Kind != graph.NodeMethod {
+		return nil
+	}
+	dot := strings.LastIndex(start, ".")
+	if dot < 0 {
+		return nil
+	}
+	typeID, methodName := start[:dot], start[dot+1:]
+	var seeds []string
+	for _, e := range g.EdgesFrom(typeID) {
+		if e.Kind != graph.EdgeImplements {
+			continue
+		}
+		candidate := e.To + "." + methodName
+		if _, ok := g.Node(candidate); ok {
+			seeds = append(seeds, candidate)
+		}
+	}
+	return seeds
+}
+
+func FindSymbol(g graph.Graph, symbol string) string {
 	if n, ok := g.Node(symbol); ok {
 		return n.ID
 	}

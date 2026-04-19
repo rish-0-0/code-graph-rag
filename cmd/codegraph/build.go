@@ -4,12 +4,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rish-0-0/code-graph-rag/internal/discover"
 	"github.com/rish-0-0/code-graph-rag/internal/graph"
 	golangidx "github.com/rish-0-0/code-graph-rag/internal/indexer/golang"
 	"github.com/rish-0-0/code-graph-rag/internal/output"
 )
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 func runBuild(args []string) int {
 	fs := newFlagSet("build", "parse a Go module tree into a persisted graph")
@@ -21,11 +36,13 @@ func runBuild(args []string) int {
 	module := fs.String("module", "", "restrict to one module path in a multi-module tree")
 	followReplace := fs.Bool("follow-replace", true, "resolve replace directives to local modules")
 	useGit := fs.Bool("git", true, "enrich module nodes with git commit/tag info when available")
+	ignore := fs.String("ignore", "", "comma-separated dir names or root-relative paths to skip (e.g. 'scripts,docs,apps/legacy')")
+	only := fs.String("only", "", "comma-separated dir names or root-relative paths to include exclusively")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	g, err := buildGraph(*root, *pkgPat, *module, *followReplace, *useGit)
+	g, err := buildGraph(*root, *pkgPat, *module, *followReplace, *useGit, splitCSV(*ignore), splitCSV(*only))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -55,12 +72,14 @@ func runBuild(args []string) int {
 }
 
 // buildGraph runs discover + index and returns the in-memory graph.
-func buildGraph(root, pattern, module string, followReplace, useGit bool) (graph.Graph, error) {
+func buildGraph(root, pattern, module string, followReplace, useGit bool, ignore, only []string) (graph.Graph, error) {
 	g := graph.New()
 	res, err := discover.Discover(root, discover.Options{
 		Module:        module,
 		FollowReplace: followReplace,
 		UseGit:        useGit,
+		Ignore:        ignore,
+		Only:          only,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("discover: %w", err)
