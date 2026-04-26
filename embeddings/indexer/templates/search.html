@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ query }} — CodeRAG{% endblock %}
+{% block body %}
+<nav class="navbar bg-body-tertiary border-bottom">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">CodeRAG</a>
+    <form action="/search" method="get" class="d-flex flex-grow-1 ms-3" role="search">
+      <input type="text" name="query" value="{{ query }}" required
+             class="form-control me-2" placeholder="Search…">
+      <button class="btn btn-outline-primary" type="submit">Search</button>
+    </form>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <p class="text-muted small mb-3">
+    Page {{ page }} · showing {{ results|length }} of up to {{ max_total }} ranked hits
+  </p>
+
+  {% if results %}
+    <div class="vstack gap-3">
+      {% for r in results %}
+        <a href="/symbol?id={{ r.node_id|urlencode }}" class="text-decoration-none text-reset">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <span class="badge bg-secondary kind-badge me-2">{{ r.kind }}</span>
+                  <strong>{{ r.name or "(unnamed)" }}</strong>
+                  {% if r.pkg %}<span class="text-muted ms-2">· {{ r.pkg }}</span>{% endif %}
+                </div>
+                <span class="badge bg-primary-subtle text-primary-emphasis">
+                  {{ "%.3f"|format(r.score) }}
+                </span>
+              </div>
+              <div class="node-id text-muted small mt-1">{{ r.node_id }}</div>
+              {% if r.text %}
+                <pre class="snippet mt-2 mb-0" style="max-height: 160px;">{{ r.text[:600] }}{% if r.text|length > 600 %}…{% endif %}</pre>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+          <a class="page-link" href="?query={{ query|urlencode }}&page={{ page - 1 }}">« Prev</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Page {{ page }} / {{ max_page }}</span></li>
+        <li class="page-item {% if page >= max_page or results|length < page_size %}disabled{% endif %}">
+          <a class="page-link" href="?query={{ query|urlencode }}&page={{ page + 1 }}">Next »</a>
+        </li>
+      </ul>
+    </nav>
+  {% else %}
+    <div class="alert alert-info">No results for <strong>{{ query }}</strong>.</div>
+  {% endif %}
+</main>
+{% endblock %}

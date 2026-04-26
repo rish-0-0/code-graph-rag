@@ -59,7 +59,7 @@ func loadOrBuild(persistPath, root string, forceRebuild bool) (graph.Graph, erro
 		}
 		fmt.Fprintf(os.Stderr, "no persisted graph at %s — running fresh build\n", persistPath)
 	}
-	g, err := buildGraph(root, "./...", "", true, true, nil, nil)
+	g, err := buildGraph(root, "./...", "", true, true, nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="container py-5">
+  <header class="text-center mb-5">
+    <h1 class="display-3 fw-bold mb-4">CodeRAG</h1>
+    <form action="/search" method="get" class="mx-auto" style="max-width: 640px;">
+      <input type="text" name="query" autofocus required
+             class="form-control form-control-lg rounded-pill shadow-sm"
+             placeholder="Search your codebase semantically…">
+      <div class="text-center mt-3">
+        <button type="submit" class="btn btn-primary btn-lg px-4">Code Search</button>
+      </div>
+    </form>
+    <p class="text-muted small mt-4 mb-0">
+      <strong>{{ total }}</strong> symbols indexed · model <code>{{ model }}</code>
+    </p>
+  </header>
+
+  {% if total > 0 %}
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">By kind</h5>
+          <ul class="list-group list-group-flush">
+            {% for kind, n in by_kind %}
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span class="badge bg-secondary kind-badge">{{ kind }}</span>
+                <span class="text-muted">{{ n }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Top packages</h5>
+          <ul class="list-group list-group-flush">
+            {% for pkg, n in top_pkgs %}
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span class="text-truncate me-2" style="max-width: 220px;" title="{{ pkg }}">
+                  {{ pkg.rsplit('/', 1)[-1] if '/' in pkg else pkg }}
+                </span>
+                <span class="text-muted">{{ n }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Recently indexed</h5>
+          <ul class="list-group list-group-flush">
+            {% for r in recent %}
+              <li class="list-group-item px-0">
+                <a href="/symbol?id={{ r.node_id|urlencode }}" class="text-decoration-none">
+                  <span class="badge bg-secondary kind-badge me-1">{{ r.kind }}</span>
+                  <strong>{{ r.name or "(unnamed)" }}</strong>
+                </a>
+                {% if r.pkg %}
+                  <div class="text-muted small text-truncate" title="{{ r.pkg }}">{{ r.pkg }}</div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+    <div class="alert alert-warning text-center">
+      No embeddings yet. Run <code>codegraph build &amp;&amp; codegraph embed</code> to populate the index.
+    </div>
+  {% endif %}
+</main>
+{% endblock %}

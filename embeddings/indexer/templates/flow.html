@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Flow — CodeRAG{% endblock %}
+{% block body %}
+<nav class="navbar bg-body-tertiary border-bottom">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="/">CodeRAG</a>
+    <a class="btn btn-outline-secondary btn-sm ms-auto"
+       href="/symbol?id={{ node_id|urlencode }}">← Symbol</a>
+    {% if browser_url %}
+      <a class="btn btn-outline-secondary btn-sm ms-2" target="_blank" rel="noopener"
+         href="{{ browser_url }}">Open Neo4j Browser ↗</a>
+    {% endif %}
+  </div>
+</nav>
+
+<main class="container-fluid py-3">
+  <div class="row g-3 align-items-end mb-2">
+    <div class="col-12">
+      <div class="text-muted small node-id">center: {{ node_id }}</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Depth: <span id="depth-val">{{ depth }}</span></label>
+      <input id="depth" type="range" min="1" max="10" value="{{ depth }}" class="form-range">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Direction</label>
+      <select id="direction" class="form-select form-select-sm">
+        <option value="both" selected>both</option>
+        <option value="out">downstream (callees)</option>
+        <option value="in">upstream (callers)</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small mb-1">Edge kinds</label>
+      <div class="d-flex flex-wrap gap-2">
+        {% for k in ["CALLS","IMPLEMENTS","HAS_METHOD","CONTAINS","IMPORTS","DECLARES","HAS_FIELD"] %}
+          <div class="form-check form-check-inline">
+            <input class="form-check-input edge-kind" type="checkbox" value="{{ k }}"
+                   id="ek-{{ k }}" {% if k in ["CALLS","IMPLEMENTS","HAS_METHOD"] %}checked{% endif %}>
+            <label class="form-check-label small" for="ek-{{ k }}">{{ k }}</label>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-2 text-end">
+      <button id="apply" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+  </div>
+
+  <div id="banner" class="alert alert-warning d-none" role="alert"></div>
+
+  <div class="position-relative" style="height: 75vh; border:1px solid #dee2e6; border-radius:6px; background:#fafbfc;">
+    <div id="net" style="width:100%; height:100%;"></div>
+    <div id="loader"
+         class="position-absolute top-0 start-50 translate-middle-x mt-3 d-none"
+         style="z-index:10; min-width: 280px; max-width: 90%;">
+      <div class="card shadow-sm">
+        <div class="card-body py-2 px-3">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+            <div id="loader-stage" class="small fw-semibold">Loading…</div>
+          </div>
+          <div id="loader-progress-wrap" class="progress mt-2 d-none" style="height:4px;">
+            <div id="loader-progress" class="progress-bar" role="progressbar" style="width:0%"></div>
+          </div>
+          <div id="loader-detail" class="small text-muted mt-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-muted small mt-2 mb-0">
+    Single-click a node to open it · double-click to re-center the graph on it.
+  </p>
+</main>
+
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+(function () {
+  const NODE_ID = {{ node_id|tojson }};
+  const KIND_COLORS = {
+    Function: "#74b9ff", Method: "#0984e3", Type: "#fdcb6e",
+    Interface: "#e17055", Package: "#a29bfe", File: "#dfe6e9",
+    Module: "#55efc4", Field: "#b2bec3", Variable: "#ffeaa7",
+    Constant: "#fab1a0", Import: "#ecf0f1",
+  };
+  const groups = {};
+  for (const [k, c] of Object.entries(KIND_COLORS)) {
+    groups[k] = { color: { background: c, border: "#2d3436" }, font: { color: "#2d3436" } };
+  }
+
+  const container = document.getElementById("net");
+  const loader = document.getElementById("loader");
+  const loaderStage = document.getElementById("loader-stage");
+  const loaderDetail = document.getElementById("loader-detail");
+  const loaderProgressWrap = document.getElementById("loader-progress-wrap");
+  const loaderProgress = document.getElementById("loader-progress");
+  const banner = document.getElementById("banner");
+
+  const NETWORK_OPTIONS = {
+    nodes: { shape: "ellipse", margin: 8 },
+    // Smooth curves are expensive per-edge each frame; keep edges straight
+    // until stabilization completes (then we re-enable for nicer rendering).
+    edges: {
+      arrows: "to",
+      smooth: false,
+      font: { size: 9, align: "middle" },
+    },
+    physics: {
+      enabled: true,
+      solver: "forceAtlas2Based",
+      forceAtlas2Based: { gravitationalConstant: -50, springLength: 100, springConstant: 0.08 },
+      stabilization: { enabled: true, iterations: 200, updateInterval: 25, fit: true },
+      adaptiveTimestep: true,
+    },
+    interaction: { hover: true, tooltipDelay: 150, hideEdgesOnDrag: true },
+    groups,
+  };
+
+  const network = new vis.Network(container, { nodes: [], edges: [] }, NETWORK_OPTIONS);
+
+  function setStage(stage, detail, pct) {
+    loader.classList.remove("d-none");
+    loaderStage.textContent = stage;
+    loaderDetail.textContent = detail || "";
+    if (typeof pct === "number") {
+      loaderProgressWrap.classList.remove("d-none");
+      loaderProgress.style.width = Math.max(0, Math.min(100, pct)) + "%";
+    } else {
+      loaderProgressWrap.classList.add("d-none");
+    }
+  }
+  function hideLoader() { loader.classList.add("d-none"); }
+
+  network.on("stabilizationProgress", p => {
+    const pct = (p.iterations / p.total) * 100;
+    setStage("Laying out graph…", `${p.iterations} / ${p.total} iterations`, pct);
+  });
+  network.on("stabilizationIterationsDone", () => {
+    // Freeze physics so dragging/zoom is instant; switch edges to smooth for
+    // a nicer static rendering.
+    network.setOptions({
+      physics: { enabled: false },
+      edges: { smooth: { enabled: true, type: "dynamic", roundness: 0.4 } },
+    });
+    hideLoader();
+  });
+
+  network.on("click", params => {
+    if (params.nodes.length) {
+      window.open("/symbol?id=" + encodeURIComponent(params.nodes[0]), "_blank");
+    }
+  });
+  network.on("doubleClick", params => {
+    if (params.nodes.length) {
+      const url = new URL(window.location);
+      url.searchParams.set("id", params.nodes[0]);
+      window.location = url.toString();
+    }
+  });
+
+  function selectedEdges() {
+    return Array.from(document.querySelectorAll(".edge-kind:checked"))
+      .map(c => c.value);
+  }
+
+  // Yield to the browser so the loader actually paints before any
+  // synchronous heavy work (e.g. setData with a large dataset).
+  const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+  async function fetchAndRender() {
+    banner.classList.add("d-none");
+    setStage("Querying graph…", "Talking to Neo4j via the indexer service");
+    const depth = document.getElementById("depth").value;
+    const direction = document.getElementById("direction").value;
+    const edges = selectedEdges().join(",") || "CALLS";
+    const url = `/graph/flow?id=${encodeURIComponent(NODE_ID)}&depth=${depth}&edges=${encodeURIComponent(edges)}&direction=${direction}`;
+    const t0 = performance.now();
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const fetchMs = Math.round(performance.now() - t0);
+      if (data.error) {
+        hideLoader();
+        banner.textContent = data.error;
+        banner.classList.remove("d-none");
+        network.setData({ nodes: [], edges: [] });
+        return;
+      }
+      if (data.truncated) {
+        banner.textContent = `Result truncated to ${data.nodes.length} nodes — try a smaller depth or fewer edge kinds.`;
+        banner.classList.remove("d-none");
+      }
+      // Re-enable physics for the new layout pass.
+      network.setOptions({
+        physics: { enabled: true },
+        edges: { smooth: false },
+      });
+      setStage(
+        "Preparing render…",
+        `${data.nodes.length} nodes, ${data.edges.length} edges (fetched in ${fetchMs} ms)`,
+      );
+      // Paint the loader update before the (potentially blocking) setData.
+      await nextFrame();
+      network.setData({ nodes: data.nodes, edges: data.edges });
+      // Stabilization events take over from here — they call hideLoader().
+    } catch (e) {
+      hideLoader();
+      banner.textContent = "Failed to load: " + e.message;
+      banner.classList.remove("d-none");
+    }
+  }
+
+  document.getElementById("depth").addEventListener("input", e => {
+    document.getElementById("depth-val").textContent = e.target.value;
+  });
+  document.getElementById("apply").addEventListener("click", fetchAndRender);
+
+  fetchAndRender();
+})();
+</script>
+{% endblock %}

@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"sort"
 	"sync"
 )
@@ -24,15 +23,36 @@ type memGraph struct {
 	edges map[string]Edge
 	out   map[string][]string
 	in    map[string][]string
+
+	sortedNodes []Node
+	sortedEdges []Edge
 }
 
 func New() Graph {
-	return &memGraph{
-		nodes: map[string]Node{},
-		edges: map[string]Edge{},
-		out:   map[string][]string{},
-		in:    map[string][]string{},
+	return NewWithCapacity(0, 0)
+}
+
+// NewWithCapacity preallocates the underlying maps. Pass rough upper-bound
+// hints from the caller (e.g. expected package count * avg nodes/pkg) to cut
+// map rehashing on large repos. Zero hints behave like New().
+func NewWithCapacity(nodeHint, edgeHint int) Graph {
+	if nodeHint < 0 {
+		nodeHint = 0
 	}
+	if edgeHint < 0 {
+		edgeHint = 0
+	}
+	return &memGraph{
+		nodes: make(map[string]Node, nodeHint),
+		edges: make(map[string]Edge, edgeHint),
+		out:   make(map[string][]string, nodeHint),
+		in:    make(map[string][]string, nodeHint),
+	}
+}
+
+func (g *memGraph) invalidate() {
+	g.sortedNodes = nil
+	g.sortedEdges = nil
 }
 
 func (g *memGraph) AddNode(n Node) {
@@ -42,13 +62,15 @@ func (g *memGraph) AddNode(n Node) {
 		return
 	}
 	g.nodes[n.ID] = n
+	g.invalidate()
 }
 
 func (g *memGraph) AddEdge(e Edge) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if e.ID == "" {
-		e.ID = fmt.Sprintf("%s|%s|%s", e.Kind, e.From, e.To)
+		// Cheap concat — avoids fmt's reflection path on a hot loop.
+		e.ID = string(e.Kind) + "|" + e.From + "|" + e.To
 	}
 	if _, ok := g.edges[e.ID]; ok {
 		return
@@ -56,6 +78,7 @@ func (g *memGraph) AddEdge(e Edge) {
 	g.edges[e.ID] = e
 	g.out[e.From] = append(g.out[e.From], e.ID)
 	g.in[e.To] = append(g.in[e.To], e.ID)
+	g.invalidate()
 }
 
 func (g *memGraph) Node(id string) (Node, bool) {
@@ -67,23 +90,47 @@ func (g *memGraph) Node(id string) (Node, bool) {
 
 func (g *memGraph) Nodes() []Node {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	if g.sortedNodes != nil {
+		out := g.sortedNodes
+		g.mu.RUnlock()
+		return out
+	}
+	g.mu.RUnlock()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.sortedNodes != nil {
+		return g.sortedNodes
+	}
 	out := make([]Node, 0, len(g.nodes))
 	for _, n := range g.nodes {
 		out = append(out, n)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	g.sortedNodes = out
 	return out
 }
 
 func (g *memGraph) Edges() []Edge {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	if g.sortedEdges != nil {
+		out := g.sortedEdges
+		g.mu.RUnlock()
+		return out
+	}
+	g.mu.RUnlock()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.sortedEdges != nil {
+		return g.sortedEdges
+	}
 	out := make([]Edge, 0, len(g.edges))
 	for _, e := range g.edges {
 		out = append(out, e)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	g.sortedEdges = out
 	return out
 }
 
