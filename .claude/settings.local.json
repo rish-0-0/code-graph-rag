@@ -27,7 +27,10 @@
       "Bash(curl -s http://localhost:8088/)",
       "Bash(curl -s http://localhost:8088/graph/status)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8088/flow?id=test&depth=3\")",
-      "Bash(curl -s \"http://localhost:8088/flow?id=test&depth=3\")"
+      "Bash(curl -s \"http://localhost:8088/flow?id=test&depth=3\")",
+      "Bash(make help *)",
+      "Bash(make -p)",
+      "Bash(make stack-status *)"
     ]
   }
 }
