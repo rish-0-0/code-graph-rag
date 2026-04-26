@@ -1,0 +1,88 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${DB_USER:-codegraph}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-codegraph}
+      POSTGRES_DB: ${DB_NAME:-codegraph}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./indexer/schema.sql:/docker-entrypoint-initdb.d/00_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-nomic-embed-text}
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-codegraph}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_memory_heap_initial__size: ${NEO4J_HEAP_INITIAL:-512m}
+      NEO4J_dbms_memory_heap_max__size: ${NEO4J_HEAP_MAX:-2G}
+    volumes:
+      - neo4jdata:/data
+      - neo4jlogs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  indexer:
+    build: ./indexer
+    ports:
+      - "${INDEXER_PORT:-8088}:8088"
+    environment:
+      DB_HOST: pgvector
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-codegraph}
+      DB_PASSWORD: ${DB_PASSWORD:-codegraph}
+      DB_NAME: ${DB_NAME:-codegraph}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-nomic-embed-text}
+      EMBEDDINGS_API_AUTH: ${EMBEDDINGS_API_AUTH:-}
+      EMBED_DIM: ${EMBED_DIM:-768}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-codegraph}
+      NEO4J_BROWSER_URL: http://localhost:${NEO4J_HTTP_PORT:-7474}
+      CODEGRAPH_GRAPH_PATH: ${CODEGRAPH_GRAPH_PATH:-/data/graph.jsonl}
+    volumes:
+      - ../.codegraph:/data:ro
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  ollama:
+  neo4jdata:
+  neo4jlogs:

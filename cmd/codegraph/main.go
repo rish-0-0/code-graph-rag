@@ -14,6 +14,8 @@ Commands:
   broken   Report dangling references, unsatisfied interfaces, orphaned exports
   query    List packages, interfaces, up/downstream callers, or neighbors
   schema   Print the node/edge vocabulary and sample Cypher queries
+  embed    Ship symbol docs+source to the embeddings/pgvector service
+  search   Semantic search over embedded symbols
 
 Typical flow:
   codegraph schema                 # learn the vocabulary
@@ -41,6 +43,10 @@ func main() {
 		os.Exit(runQuery(args))
 	case "schema":
 		os.Exit(runSchema(args))
+	case "embed":
+		os.Exit(runEmbed(args))
+	case "search":
+		os.Exit(runSearch(args))
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
